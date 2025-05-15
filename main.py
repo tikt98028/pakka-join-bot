@@ -22,17 +22,19 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         print(f"❌ Не вдалося написати @{user.username}")
 
+async def start_bot():
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    application.add_handler(ChatJoinRequestHandler(approve))
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+
 def run_flask():
     app.run(host="0.0.0.0", port=10000)
 
-def run_telegram_bot():
+def run():
     asyncio.run(start_bot())
-
-async def start_bot():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(ChatJoinRequestHandler(approve))
-    await app.run_polling()
 
 if __name__ == "__main__":
     Thread(target=run_flask).start()
-    run_telegram_bot()
+    Thread(target=run).start()
