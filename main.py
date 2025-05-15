@@ -19,7 +19,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def run_telegram_bot():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(ChatJoinRequestHandler(approve))
-    app.run_async()
 
 flask_app = Flask(__name__)
 
