@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: pakkabot
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: "python main.py"
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+    autoDeploy: false
