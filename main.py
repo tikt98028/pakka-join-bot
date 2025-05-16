@@ -4,17 +4,17 @@ import asyncio
 import aiohttp
 from fastapi import FastAPI, Request
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
-    CommandHandler, CallbackQueryHandler
+    CommandHandler, CallbackQueryHandler, MessageHandler, filters  # ← фікс тут!
 )
 from dotenv import load_dotenv
 from telegram.error import BadRequest
 from db import init_db, add_user, get_total_users, get_last_users, get_all_user_ids
 
-# === Config ===
+# === CONFIG ===
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 7926831448
@@ -22,18 +22,18 @@ WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"
 
-# === Logging ===
+# === LOGGING ===
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# === Init ===
+# === INIT ===
 init_db()
 app = FastAPI()
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# === Self-ping ===
+# === KEEP AWAKE ===
 async def keep_awake():
     async with aiohttp.ClientSession() as session:
         while True:
@@ -44,7 +44,7 @@ async def keep_awake():
                 logging.warning(f"🛑 Self-ping error: {e}")
             await asyncio.sleep(300)
 
-# === Approve new users ===
+# === AUTO APPROVE ===
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     chat_id = update.chat_join_request.chat.id
@@ -83,7 +83,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.warning(f"⚠️ send_photo failed: {e}")
 
-# === Admin Panel (/admin) ===
+# === ADMIN PANEL ===
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -94,7 +94,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
 
-# === Обробка кнопок ===
+# === CALLBACK HANDLER ===
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -116,7 +116,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📝 Введи текст розсилки:")
         context.user_data["broadcast_mode"] = True
 
-# === Обробка повідомлень для розсилки ===
+# === MESSAGE HANDLER FOR BROADCAST ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -133,7 +133,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
-# === Startup ===
+# === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
@@ -141,18 +141,20 @@ async def on_startup():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
     telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
-    telegram_app.add_handler(MessageHandler(None, handle_message))  # для розсилки
+    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))  # ← тут фільтр + хендлер
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
     asyncio.create_task(keep_awake())
     logging.info("✅ Webhook активовано")
 
+# === SHUTDOWN ===
 @app.on_event("shutdown")
 async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
+# === FASTAPI ENDPOINT ===
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(req: Request):
     data = await req.json()
