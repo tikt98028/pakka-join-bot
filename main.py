@@ -122,12 +122,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "export":
         export_users_to_csv()
         try:
-            await context.bot.send_document(
-                chat_id=update.effective_chat.id,
-                document=InputFile("users.csv"),
-                filename="users.csv",
-                caption="📎 Exported user data"
-            )
+            with open("users.csv", "rb") as file:
+                await context.bot.send_document(
+                    chat_id=update.effective_chat.id,
+                    document=file,
+                    filename="users.csv",
+                    caption="📎 Exported user data"
+                )
         except Exception as e:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
 
