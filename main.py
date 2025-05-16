@@ -18,7 +18,17 @@ WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"  # 🆕
 
 # 💬
-WELCOME_MESSAGE = "Привіт 👋 Дякую, що приєднався до нашого каналу! Якщо є питання — напиши сюди."
+WELCOME_MESSAGE = (
+    "🚀 You’ve just unlocked access to Pakka Profit —\n"
+    "Where signals = real profits 💸\n\n"
+    "🎯 Accuracy up to 98%\n"
+    "📈 No experience needed — just copy & earn\n"
+    "🎁 Your first signal is 100% FREE\n\n"
+    "⏳ Hurry! This free access is available for the next 30 minutes only.\n"
+    "After that, signals go private for VIP members.\n\n"
+    "👇 Tap now and grab your free signal:\n"
+    "➡️ @Pakka_Profit ✅"
+)
 
 # 🧠 Logging
 logging.basicConfig(
