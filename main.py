@@ -88,7 +88,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === ADMIN PANEL ===
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔢 Статистика", callback_data="stats")],
@@ -100,7 +100,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === CALLBACK HANDLER ===
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
     query = update.callback_query
     await query.answer()
@@ -131,9 +131,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
 
-# === BROADCAST MESSAGE ===
+# === BROADCAST TEXT MESSAGE ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
     if context.user_data.get("broadcast_mode"):
         text = "🗣 " + update.message.text
