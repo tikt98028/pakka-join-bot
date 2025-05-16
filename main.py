@@ -4,15 +4,18 @@ import asyncio
 import aiohttp
 from fastapi import FastAPI, Request
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 )
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
-    CommandHandler, CallbackQueryHandler, MessageHandler, filters  # ← фікс тут!
+    CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
 from dotenv import load_dotenv
 from telegram.error import BadRequest
-from db import init_db, add_user, get_total_users, get_last_users, get_all_user_ids
+from db import (
+    init_db, add_user, get_total_users,
+    get_last_users, get_all_user_ids, export_users_to_csv
+)
 
 # === CONFIG ===
 load_dotenv()
@@ -90,7 +93,8 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔢 Статистика", callback_data="stats")],
         [InlineKeyboardButton("📋 Останні користувачі", callback_data="logs")],
-        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
+        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")],
+        [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")]
     ])
     await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
 
@@ -115,8 +119,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "broadcast":
         await query.edit_message_text("📝 Введи текст розсилки:")
         context.user_data["broadcast_mode"] = True
+    elif query.data == "export":
+        export_users_to_csv()
+        try:
+            await context.bot.send_document(
+                chat_id=update.effective_chat.id,
+                document=InputFile("users.csv"),
+                filename="users.csv",
+                caption="📎 Exported user data"
+            )
+        except Exception as e:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
 
-# === MESSAGE HANDLER FOR BROADCAST ===
+# === BROADCAST MESSAGE ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -141,7 +156,7 @@ async def on_startup():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
     telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))  # ← тут фільтр + хендлер
+    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
@@ -154,7 +169,7 @@ async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
-# === FASTAPI ENDPOINT ===
+# === WEBHOOK HANDLER ===
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(req: Request):
     data = await req.json()
