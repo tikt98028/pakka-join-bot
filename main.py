@@ -8,13 +8,13 @@ from telegram import (
 )
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
-    CommandHandler, CallbackQueryHandler, MessageHandler, filters
+    CommandHandler, MessageHandler, filters
 )
 from dotenv import load_dotenv
 from telegram.error import BadRequest
 from db import (
     init_db, add_user, get_total_users,
-    get_last_users, get_all_user_ids, export_users_to_csv
+    get_last_users, get_all_user_ids, export_users_to_xlsx
 )
 
 # === CONFIG ===
@@ -86,78 +86,29 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.warning(f"⚠️ send_photo failed: {e}")
 
-# === ADMIN PANEL ===
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# === EXPORT TO EXCEL ===
+async def export_xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔢 Статистика", callback_data="stats")],
-        [InlineKeyboardButton("📋 Останні користувачі", callback_data="logs")],
-        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")],
-        [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")]
-    ])
-    await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
-
-# === CALLBACK HANDLER ===
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != ADMIN_ID:
-        return
-    query = update.callback_query
-    await query.answer()
-    if query.data == "stats":
-        count = get_total_users()
-        await query.edit_message_text(f"📊 Total approved users: {count}")
-    elif query.data == "logs":
-        users = get_last_users()
-        if not users:
-            await query.edit_message_text("⚠️ No users yet.")
-            return
-        text = "\n".join([
-            f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users
-        ])
-        await query.edit_message_text(f"📋 Last users:\n{text}")
-    elif query.data == "broadcast":
-        await query.edit_message_text("📝 Введи текст розсилки:")
-        context.user_data["broadcast_mode"] = True
-    elif query.data == "export":
-        export_users_to_csv()
-        try:
-            with open("users.csv", "rb") as file:
-                await context.bot.send_document(
-                    chat_id=update.effective_chat.id,
-                    document=file,
-                    filename="users.csv",
-                    caption="📎 Exported user data"
-                )
-        except Exception as e:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
-
-# === BROADCAST TEXT MESSAGE ===
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != ADMIN_ID:
-        return
-    if context.user_data.get("broadcast_mode"):
-        text = "🗣 " + update.message.text
-        ids = get_all_user_ids()
-        sent, fail = 0, 0
-        for uid in ids:
-            try:
-                await context.bot.send_message(chat_id=uid, text=text)
-                sent += 1
-            except:
-                fail += 1
-        await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
-        context.user_data["broadcast_mode"] = False
+    export_users_to_xlsx()
+    try:
+        with open("users.xlsx", "rb") as file:
+            await context.bot.send_document(
+                chat_id=update.effective_chat.id,
+                document=file,
+                filename="users.xlsx",
+                caption="📎 Exported Excel file"
+            )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Export failed: {e}")
 
 # === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
-    telegram_app.add_handler(CommandHandler("admin", admin_panel))
-    telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
-    telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /export_xlsx для Excel")))
+    telegram_app.add_handler(CommandHandler("export_xlsx", export_xlsx))
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
