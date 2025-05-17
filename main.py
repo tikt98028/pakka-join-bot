@@ -3,14 +3,19 @@ import logging
 import asyncio
 import aiohttp
 from fastapi import FastAPI, Request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+)
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
-    CommandHandler
+    CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
 from dotenv import load_dotenv
 from telegram.error import BadRequest
-from db import init_db, add_user
+from db import (
+    init_db, add_user, get_total_users,
+    get_last_users, get_all_user_ids, export_users_to_csv
+)
 
 # === CONFIG ===
 load_dotenv()
@@ -51,9 +56,13 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user.id)
         logging.info(f"✅ Схвалено {username}")
     except BadRequest as e:
-        logging.warning(f"⚠️ approve error: {e}")
+        if "hide_requester_missing" in str(e):
+            logging.warning(f"⚠️ Неможливо схвалити {username}")
+        else:
+            logging.error(f"❌ Помилка: {e}")
     add_user(user.id, user.username, user.first_name)
 
+    photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
         "Where signals = real profits 💸\n\n"
@@ -64,20 +73,91 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "After that, signals go private for VIP members.\n\n"
         "👇 Tap now and grab your free signal:"
     )
-    photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 GET FREE SIGNAL", url="https://t.me/m/nSRnEuc5MjJi")]
     ])
     try:
-        await context.bot.send_photo(chat_id=user.id, photo=photo_url, caption=caption, reply_markup=keyboard)
+        await context.bot.send_photo(
+            chat_id=user.id,
+            photo=photo_url,
+            caption=caption,
+            reply_markup=keyboard
+        )
     except Exception as e:
         logging.warning(f"⚠️ send_photo failed: {e}")
+
+# === ADMIN PANEL ===
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔢 Статистика", callback_data="stats")],
+        [InlineKeyboardButton("📋 Останні користувачі", callback_data="logs")],
+        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")],
+        [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")]
+    ])
+    await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
+
+# === CALLBACK HANDLER ===
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+    if query.data == "stats":
+        count = get_total_users()
+        await query.edit_message_text(f"📊 Total approved users: {count}")
+    elif query.data == "logs":
+        users = get_last_users()
+        if not users:
+            await query.edit_message_text("⚠️ No users yet.")
+            return
+        text = "\n".join([
+            f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users
+        ])
+        await query.edit_message_text(f"📋 Last users:\n{text}")
+    elif query.data == "broadcast":
+        await query.edit_message_text("📝 Введи текст розсилки:")
+        context.user_data["broadcast_mode"] = True
+    elif query.data == "export":
+        export_users_to_csv()
+        try:
+            with open("users.csv", "rb") as file:
+                await context.bot.send_document(
+                    chat_id=update.effective_chat.id,
+                    document=file,
+                    filename="users.csv",
+                    caption="📎 Exported user data"
+                )
+        except Exception as e:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
+
+# === BROADCAST TEXT MESSAGE ===
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    if context.user_data.get("broadcast_mode"):
+        text = "🗣 " + update.message.text
+        ids = get_all_user_ids()
+        sent, fail = 0, 0
+        for uid in ids:
+            try:
+                await context.bot.send_message(chat_id=uid, text=text)
+                sent += 1
+            except:
+                fail += 1
+        await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
+        context.user_data["broadcast_mode"] = False
 
 # === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
+    telegram_app.add_handler(CommandHandler("admin", admin_panel))
+    telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
+    telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
@@ -90,7 +170,7 @@ async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
-# === WEBHOOK ===
+# === WEBHOOK HANDLER ===
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(req: Request):
     data = await req.json()
