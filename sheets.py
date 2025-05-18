@@ -3,7 +3,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # Файл ключа сервісного акаунта (поклади в корінь проєкту)
-CREDENTIALS_FILE = "google-credentials.json"  # <-- назви свій .json саме так
+CREDENTIALS_FILE = "pakka-sheets-sync-b080d6114c1f.json"  # <-- назви свій .json саме так
 SPREADSHEET_NAME = "Pakka Users"
 
 # Підключення до Google Sheets
