@@ -10,7 +10,6 @@ from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
     CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
-from dotenv import load_dotenv
 from telegram.error import BadRequest
 from db import (
     init_db, add_user, get_total_users,
@@ -19,12 +18,16 @@ from db import (
 from sheets import add_user_to_sheet
 
 # === CONFIG ===
-load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7926831448
+SHEET_ID = os.getenv("SHEET_ID")
+ADMIN_ID = 7926831448  # 🔐 Заміни при потребі
+
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"
+
+if not BOT_TOKEN or not SHEET_ID:
+    raise Exception("❌ BOT_TOKEN або SHEET_ID не встановлені!")
 
 # === LOGGING ===
 logging.basicConfig(
@@ -62,17 +65,14 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logging.error(f"❌ Помилка: {e}")
 
-    # ➕ Додати до SQLite
     add_user(user.id, user.username, user.first_name)
 
-    # ➕ Додати до Google Sheets
     try:
         add_user_to_sheet(user.id, user.username, user.first_name)
         logging.info(f"📥 Додано до Google Sheets: {user.id}")
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
 
-    # 📸 Привітання
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
