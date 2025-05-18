@@ -1,26 +1,35 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
 
-# Файл ключа сервісного акаунта (поклади в корінь проєкту)
-CREDENTIALS_FILE = "google-credentials.json"  # <-- назви свій .json саме так
-SPREADSHEET_NAME = "Pakka Users"
+# 🔐 Шлях до секретного файла на Render
+GOOGLE_CREDENTIALS_PATH = "/etc/secrets/google-credentials.json"
 
-# Підключення до Google Sheets
-def get_sheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
-    client = gspread.authorize(creds)
-    sheet = client.open(SPREADSHEET_NAME).sheet1
-    return sheet
+# 📡 Права доступу до Google Sheets + Drive API
+SCOPE = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
-# Додає нового юзера
-def add_user_to_sheet(telegram_id, username, first_name):
-    sheet = get_sheet()
-    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    sheet.append_row([
-        str(telegram_id),
-        username if username else "",
-        first_name if first_name else "",
-        joined_at
-    ])
+# 🔑 Завантаження облікових даних
+credentials = ServiceAccountCredentials.from_json_keyfile_name(
+    GOOGLE_CREDENTIALS_PATH, SCOPE
+)
+
+# 🚀 Авторизація клієнта Google Sheets
+client = gspread.authorize(credentials)
+
+# 📄 Ідентифікатор таблиці з env
+import os
+SHEET_ID = os.getenv("SHEET_ID")  # 👈 обов'язково додай в Environment Variables
+
+# 📑 Відкриваємо таблицю
+sheet = client.open_by_key(SHEET_ID).sheet1
+
+
+# ⚡ Функція: додати нового користувача
+def add_user(user_id: int, username: str):
+    try:
+        sheet.append_row([str(user_id), username])
+        print(f"[+] User added to sheet: {user_id} - {username}")
+    except Exception as e:
+        print(f"[!] Failed to add user to sheet: {e}")
