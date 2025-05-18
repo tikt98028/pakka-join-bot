@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from sheets import (
     add_user_to_sheet, get_total_users,
     get_last_users, get_users_last_24h,
-    get_users_by_source
+    get_users_by_source, get_all_user_ids
 )
 
 # === CONFIG ===
@@ -145,14 +145,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📝 Введи текст розсилки:")
         context.user_data["broadcast_mode"] = True
 
-# === BROADCAST HANDLER ===
+# === BROADCAST TEXT ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
     if context.user_data.get("broadcast_mode"):
         text = "🗣 " + update.message.text
-        # Тільки ID через Sheets не зберігаємо — адаптуй сам якщо треба
-        await update.message.reply_text("⚠️ Broadcast не реалізований повністю для Sheets.")
+        ids = get_all_user_ids()
+        sent, fail = 0, 0
+        for uid in ids:
+            try:
+                await context.bot.send_message(chat_id=uid, text=text)
+                sent += 1
+            except:
+                fail += 1
+        await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
 # === STARTUP ===
