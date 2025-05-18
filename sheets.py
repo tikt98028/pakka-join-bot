@@ -1,35 +1,39 @@
+import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# 🔐 Шлях до секретного файла на Render
+# === CONFIG ===
 GOOGLE_CREDENTIALS_PATH = "/etc/secrets/google-credentials.json"
-
-# 📡 Права доступу до Google Sheets + Drive API
 SCOPE = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
 
-# 🔑 Завантаження облікових даних
-credentials = ServiceAccountCredentials.from_json_keyfile_name(
-    GOOGLE_CREDENTIALS_PATH, SCOPE
-)
+# === LOAD CREDS ===
+try:
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        GOOGLE_CREDENTIALS_PATH, SCOPE
+    )
+    client = gspread.authorize(credentials)
+except Exception as e:
+    raise RuntimeError(f"❌ Failed to authorize Google Sheets client: {e}")
 
-# 🚀 Авторизація клієнта Google Sheets
-client = gspread.authorize(credentials)
+# === LOAD SHEET ===
+SHEET_ID = os.getenv("SHEET_ID")
+if not SHEET_ID:
+    raise ValueError("❌ SHEET_ID is not set in environment variables")
 
-# 📄 Ідентифікатор таблиці з env
-import os
-SHEET_ID = os.getenv("SHEET_ID")  # 👈 обов'язково додай в Environment Variables
+try:
+    sheet = client.open_by_key(SHEET_ID).sheet1
+except Exception as e:
+    raise RuntimeError(f"❌ Failed to open Google Sheet: {e}")
 
-# 📑 Відкриваємо таблицю
-sheet = client.open_by_key(SHEET_ID).sheet1
-
-
-# ⚡ Функція: додати нового користувача
-def add_user(user_id: int, username: str):
+# === FUNCTION: Add user to sheet ===
+def add_user_to_sheet(user_id: int, username: str, first_name: str = ""):
+    username = username or "no_username"
+    first_name = first_name or ""
     try:
-        sheet.append_row([str(user_id), username])
-        print(f"[+] User added to sheet: {user_id} - {username}")
+        sheet.append_row([str(user_id), username, first_name])
+        print(f"✅ [SHEET] User added: {user_id} | {username}")
     except Exception as e:
-        print(f"[!] Failed to add user to sheet: {e}")
+        print(f"⚠️ [SHEET] Failed to add user: {e}")
