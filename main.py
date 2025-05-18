@@ -13,8 +13,9 @@ from telegram.error import BadRequest
 from dotenv import load_dotenv
 
 from db import (
-    init_db, add_user, get_total_users,
-    get_last_users, get_all_user_ids, export_users_to_csv, get_users_by_source
+    init_db, add_user, get_total_users, get_last_users,
+    get_all_user_ids, export_users_to_csv,
+    get_users_by_source, get_users_last_24h
 )
 from sheets import add_user_to_sheet
 
@@ -48,7 +49,7 @@ async def keep_awake():
                 logging.warning(f"🛑 Self-ping error: {e}")
             await asyncio.sleep(300)
 
-# === APPROVE REQUEST ===
+# === APPROVE ===
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     chat_id = update.chat_join_request.chat.id
@@ -67,14 +68,13 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.error(f"❌ Помилка: {e}")
 
     add_user(user.id, user.username, user.first_name, invite_source)
-
     try:
         add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
         logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
 
-    # 🤖 Привітання
+    # Привітання
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
@@ -104,11 +104,12 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔢 Статистика", callback_data="stats")],
-        [InlineKeyboardButton("📋 Останні користувачі", callback_data="logs")],
-        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")],
+        [InlineKeyboardButton("🔢 Всі користувачі", callback_data="stats")],
+        [InlineKeyboardButton("🕓 За добу", callback_data="lastday")],
+        [InlineKeyboardButton("📋 Останні", callback_data="logs")],
+        [InlineKeyboardButton("📊 Джерела", callback_data="sources")],
         [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")],
-        [InlineKeyboardButton("📊 Джерела", callback_data="sources")]
+        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
     ])
     await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
 
@@ -122,16 +123,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "stats":
         count = get_total_users()
         await query.edit_message_text(f"📊 Total approved users: {count}")
+    elif query.data == "lastday":
+        count = get_users_last_24h()
+        await query.edit_message_text(f"🕓 За останні 24 години: {count} користувачів")
     elif query.data == "logs":
         users = get_last_users()
         if not users:
             await query.edit_message_text("⚠️ No users yet.")
             return
-        text = "\n".join([f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users])
+        text = "\n".join([
+            f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users
+        ])
         await query.edit_message_text(f"📋 Last users:\n{text}")
-    elif query.data == "broadcast":
-        await query.edit_message_text("📝 Введи текст розсилки:")
-        context.user_data["broadcast_mode"] = True
+    elif query.data == "sources":
+        sources = get_users_by_source()
+        if not sources:
+            await query.edit_message_text("⚠️ Даних ще немає.")
+            return
+        msg = "📊 Джерела приєднань:\n\n"
+        for source, count in sources:
+            label = source if source else "🔗 Без мітки"
+            msg += f"{label}: {count} користувачів\n"
+        await query.edit_message_text(msg)
     elif query.data == "export":
         export_users_to_csv()
         try:
@@ -144,16 +157,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
-    elif query.data == "sources":
-        sources = get_users_by_source()
-        if not sources:
-            await query.edit_message_text("⚠️ Даних ще немає.")
-            return
-        msg = "📊 Джерела приєднань:\n\n"
-        for source, count in sources:
-            label = source if source else "🔗 Без мітки"
-            msg += f"{label}: {count} користувачів\n"
-        await query.edit_message_text(msg)
+    elif query.data == "broadcast":
+        await query.edit_message_text("📝 Введи текст розсилки:")
+        context.user_data["broadcast_mode"] = True
 
 # === BROADCAST HANDLER ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -172,7 +178,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
-# === FASTAPI EVENTS ===
+# === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
