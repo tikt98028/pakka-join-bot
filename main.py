@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 from sheets import (
     add_user_to_sheet, get_total_users,
     get_last_users, get_users_last_24h,
-    get_users_by_source, get_all_user_ids
+    get_users_by_source, get_all_user_ids,
+    count_by_source, get_users_last_24h_by_source
 )
 
 # === CONFIG ===
@@ -47,6 +48,24 @@ async def keep_awake():
                 logging.warning(f"🛑 Self-ping error: {e}")
             await asyncio.sleep(300)
 
+# === DAILY REPORT ===
+async def send_daily_report(bot):
+    await asyncio.sleep(30)
+    while True:
+        try:
+            stats = get_users_last_24h_by_source()
+            if not stats:
+                text = "📅 Звіт за 24 години:\n\n❌ Немає нових користувачів."
+            else:
+                text = "📅 Звіт за останні 24 години:\n\n"
+                for source, count in stats:
+                    label = source if source else "unknown"
+                    text += f"🔗 {label} — {count}\n"
+            await bot.send_message(chat_id=ADMIN_ID, text=text)
+        except Exception as e:
+            logging.warning(f"❌ Daily report error: {e}")
+        await asyncio.sleep(86400)
+
 # === APPROVE ===
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
@@ -71,7 +90,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
 
-    # Привітання
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
@@ -138,8 +156,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         msg = "📊 Джерела приєднань:\n\n"
         for source, count in sources:
-            label = source if source else "🔗 Без мітки"
-            msg += f"{label}: {count} користувачів\n"
+            msg += f"🔗 {source}: {count} користувачів\n"
         await query.edit_message_text(msg)
     elif query.data == "broadcast":
         await query.edit_message_text("📝 Введи текст розсилки:")
@@ -162,6 +179,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
+# === /STATS COMMAND ===
+async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    if args:
+        link_name = args[0]
+        count = count_by_source(link_name)
+        await update.message.reply_text(f"🔗 Посилання **{link_name}** — {count} користувачів")
+    else:
+        summary = dict(get_users_by_source())
+        if not summary:
+            await update.message.reply_text("⚠️ Немає даних по посиланнях")
+            return
+        text = "📊 Всі джерела:\n"
+        for src, cnt in summary.items():
+            text += f"🔗 {src}: {cnt} користувачів\n"
+        await update.message.reply_text(text)
+
 # === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
@@ -170,11 +206,16 @@ async def on_startup():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
     telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
+    telegram_app.add_handler(CommandHandler("stats", stats_handler))
     telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
+
     asyncio.create_task(keep_awake())
+    asyncio.create_task(send_daily_report(telegram_app.bot))
+
     logging.info("✅ Webhook активовано")
 
 @app.on_event("shutdown")
