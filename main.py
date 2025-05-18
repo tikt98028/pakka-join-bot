@@ -2,15 +2,16 @@ import os
 import logging
 import asyncio
 import aiohttp
+from datetime import datetime
 from fastapi import FastAPI, Request
-from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
     CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
 from telegram.error import BadRequest
+from dotenv import load_dotenv
+
 from db import (
     init_db, add_user, get_total_users,
     get_last_users, get_all_user_ids, export_users_to_csv
@@ -18,11 +19,12 @@ from db import (
 from sheets import add_user_to_sheet
 
 # === CONFIG ===
+load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7926831448
+ADMIN_ID = 7926831448  # заміни на свій Telegram ID
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
-SELF_PING_URL = "https://pakka-join-bot.onrender.com/ping"
+SELF_PING_URL = "https://pakka-join-bot.onrender.com"
 
 # === LOGGING ===
 logging.basicConfig(
@@ -60,15 +62,20 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logging.error(f"❌ Помилка: {e}")
 
-    # Додаємо в БД та Sheets
+    # ➕ Додати до БД
     add_user(user.id, user.username, user.first_name)
+
+    # 🗓️ Створити дату
+    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    # 📄 Додати до Google Sheet
     try:
-        add_user_to_sheet(user.id, user.username, user.first_name)
+        add_user_to_sheet(user.id, user.username, user.first_name, joined_at)
         logging.info(f"📥 Додано до Google Sheets: {user.id}")
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
 
-    # Welcome повідомлення
+    # 🤖 Надіслати повідомлення
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
@@ -156,7 +163,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
-# === STARTUP ===
+# === FASTAPI EVENTS ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
@@ -171,21 +178,14 @@ async def on_startup():
     asyncio.create_task(keep_awake())
     logging.info("✅ Webhook активовано")
 
-# === SHUTDOWN ===
 @app.on_event("shutdown")
 async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
-# === TELEGRAM WEBHOOK ===
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(req: Request):
     data = await req.json()
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"status": "ok"}
-
-# === UPTIME ROBOT HEALTHCHECK ===
-@app.get("/ping")
-async def ping():
-    return {"status": "alive"}
