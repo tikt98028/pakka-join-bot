@@ -1,15 +1,10 @@
-import os
 import sqlite3
 from datetime import datetime
 import csv
 
-# === CONFIG ===
-DB_NAME = os.getenv("DB_NAME", "users.db")  # Можна змінити в Environment Variables
-EXPORT_PATH = os.getenv("EXPORT_PATH", ".")  # Де створювати CSV файл
+DB_NAME = "users.db"
 
-# === INIT DB ===
 def init_db():
-    os.makedirs(os.path.dirname(DB_NAME), exist_ok=True) if "/" in DB_NAME else None
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -18,27 +13,27 @@ def init_db():
                 telegram_id INTEGER,
                 username TEXT,
                 first_name TEXT,
-                joined_at TEXT
+                joined_at TEXT,
+                invite_source TEXT
             )
         """)
         conn.commit()
 
-# === ADD USER ===
-def add_user(telegram_id, username, first_name):
+def add_user(telegram_id, username, first_name, invite_source="unknown"):
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO users (telegram_id, username, first_name, joined_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (telegram_id, username, first_name, joined_at, invite_source)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             telegram_id,
             username,
             first_name,
-            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+            invite_source
         ))
         conn.commit()
 
-# === STATS ===
 def get_total_users():
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
@@ -60,15 +55,21 @@ def get_all_user_ids():
         cursor.execute("SELECT telegram_id FROM users")
         return [row[0] for row in cursor.fetchall()]
 
-# === EXPORT TO CSV ===
 def export_users_to_csv(filename="users.csv"):
-    filepath = os.path.join(EXPORT_PATH, filename)
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT telegram_id, username, first_name, joined_at FROM users")
+        cursor.execute("SELECT telegram_id, username, first_name, joined_at, invite_source FROM users")
         rows = cursor.fetchall()
-        os.makedirs(EXPORT_PATH, exist_ok=True)
-        with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
+        with open(filename, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(["telegram_id", "username", "first_name", "joined_at"])
+            writer.writerow(["telegram_id", "username", "first_name", "joined_at", "invite_source"])
             writer.writerows(rows)
+
+def get_users_by_source():
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT invite_source, COUNT(*) FROM users
+            GROUP BY invite_source
+        """)
+        return cursor.fetchall()
