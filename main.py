@@ -183,6 +183,11 @@ async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
+# === WEBHOOK HANDLER ===
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(req: Request):
     data = await req.json()
