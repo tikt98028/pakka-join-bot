@@ -12,12 +12,11 @@ from telegram.ext import (
 from telegram.error import BadRequest
 from dotenv import load_dotenv
 
-from db import (
-    init_db, add_user, get_total_users, get_last_users,
-    get_all_user_ids, export_users_to_csv,
-    get_users_by_source, get_users_last_24h
+from sheets import (
+    add_user_to_sheet, get_total_users,
+    get_last_users, get_users_last_24h,
+    get_users_by_source
 )
-from sheets import add_user_to_sheet
 
 # === CONFIG ===
 load_dotenv()
@@ -34,7 +33,6 @@ logging.basicConfig(
 )
 
 # === INIT ===
-init_db()
 app = FastAPI()
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -67,7 +65,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logging.error(f"❌ Помилка: {e}")
 
-    add_user(user.id, user.username, user.first_name, invite_source)
     try:
         add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
         logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
@@ -108,7 +105,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🕓 За добу", callback_data="lastday")],
         [InlineKeyboardButton("📋 Останні", callback_data="logs")],
         [InlineKeyboardButton("📊 Джерела", callback_data="sources")],
-        [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")],
         [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
     ])
     await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
@@ -132,7 +128,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("⚠️ No users yet.")
             return
         text = "\n".join([
-            f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users
+            f"{u['first_name']} ({u['username'] or 'no username'}) — {u['joined_at']}" for u in users
         ])
         await query.edit_message_text(f"📋 Last users:\n{text}")
     elif query.data == "sources":
@@ -145,18 +141,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             label = source if source else "🔗 Без мітки"
             msg += f"{label}: {count} користувачів\n"
         await query.edit_message_text(msg)
-    elif query.data == "export":
-        export_users_to_csv()
-        try:
-            with open("users.csv", "rb") as file:
-                await context.bot.send_document(
-                    chat_id=update.effective_chat.id,
-                    document=file,
-                    filename="users.csv",
-                    caption="📎 Exported user data"
-                )
-        except Exception as e:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
     elif query.data == "broadcast":
         await query.edit_message_text("📝 Введи текст розсилки:")
         context.user_data["broadcast_mode"] = True
@@ -167,15 +151,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if context.user_data.get("broadcast_mode"):
         text = "🗣 " + update.message.text
-        ids = get_all_user_ids()
-        sent, fail = 0, 0
-        for uid in ids:
-            try:
-                await context.bot.send_message(chat_id=uid, text=text)
-                sent += 1
-            except:
-                fail += 1
-        await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
+        # Тільки ID через Sheets не зберігаємо — адаптуй сам якщо треба
+        await update.message.reply_text("⚠️ Broadcast не реалізований повністю для Sheets.")
         context.user_data["broadcast_mode"] = False
 
 # === STARTUP ===
