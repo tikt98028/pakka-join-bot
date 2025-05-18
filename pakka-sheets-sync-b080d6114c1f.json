@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "pakka-sheets-sync",
+  "private_key_id": "b080d6114c1f1749289cd0bbbd2a02ff2af6981e",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsIsA+T9StWhUf\nKkNLSwQs/74iaJogdz4n+gvYmr+AMiDe+nDusWyME6PKSdWOEk9hC+N9V0mGFkK0\nltTyCqswT5eeqLYMYQJCTI5bes6eQviBgOpzLhGWUlZSIA3qABa+vgpRO+CrkD1J\n0KXJl4K491DKm9VZzZVRbks0NE2omPbjUAW3LJ22hObwnEV0Jr7AbQuFSOO/YO1U\nF6+/rqgclO2io9sLlo26fnXJ0wM86PPo23utGD/Ro5v1sfQtlcZXVnI0FD2psr1J\nh244r/gh7P7OTDQG/EbY1CXx3kICorlGi3FpjNp/s+7FIO2XZ4AH8OPtzYsa+oIM\n+6amlB5BAgMBAAECggEAB9QCmMY7fBg4i0kSxEobPDUpu9kJJAKj+z4LOr3tk43F\n4HJ/wC/+U9n6U/RU6bHycvqKiv8T60etZDB8ZH5FTNOUqJA6AcjNAv7n+MEmXKGG\nfL+V9iXMtDWsUippH6zrVB03eRgxs2pTl9D8kAVvcluTkHXwUZryxGlyQYuq1+gS\n+MLeXB2TeriyHBw5GF2kOw2TC9sQ0q1+voIEAFQ4KO249GBD/uTD5JJ/HvGJsFEK\neO7r1b5pnoSE71eghRh7/Uv0AplVPXp+YmQOmYCwTxTRBeQ0wUG5PCzTwByuTNbr\nisdnTky4LhcsUMKk8jSSuhImgaaNBTnvd3rSKLkK4QKBgQD4QeX8PDGqDRONikIh\nH5DLo+zZL4c/v2bl9FeswxMuMGgnoPzoD9u2K5bZEknjW7e4FOBLdw7e4t3IFVD1\nZbXBSxJ9OKJx9PfrmPEFK0OL/kZEsh9JR8vmqZeLw/3pFQXOAm89bSYnNMgiErMx\npvK7QmfZYvzLQChfNp2LqJPR8QKBgQDzgBKMgk7ZpTWwNE8SN+VPt6WNO/QFcikU\n4UIyo0QuL0r3ZR5mRpg9bTBg+DScONSk8zQzeeRlbuV4dPR5uYOaBnvcSmx32RyT\nOWFQfhvGf2V+8yEDftd5Xit7RVFfCccdtAaDLE+Ml93VRuYhww9XAsq1HBA5jhbh\nu052PwjBUQKBgDZIYntmxg1C0rWuN4t6lXSRoWZT6CTeOyeo58rU1MrSttODdglf\n/lC080T/pLxb/632kpytqci+nnPzhUJDPRzIx4At9Acq41LWnEzfCuP/c2nt8L1b\nP5BuIL7k2g4vFJfZHG24AhGsjt40bI48zPJ5MK/t3wyqOKmpDYXOFJRhAoGAGcU8\nMVK5NZ+ehv+CPtNbmYw+ISxvLwReBK+yadmNpbWroXM6PGjMQ/QCYsDiEIaTOsHi\njHAiE/ognxcBqMBRhUOaaD4YLLb1pz8zZWlzVxa0jzL8E3qhI18sCufTLNPEFwiu\nh8Nwx9hqyd+vC3Oxc+v/uBs4PF8lXM6OB0W0j4ECgYEA0V9sF+BhUpwvS6RbnOIy\n5nhJaBjzS5qxHwFfojx+yVZRmJHzL7b6wofa7krVfD32XihgaBFE9a19j5j+5YXZ\nvl2H9NE8OeRVbQr7h5DcKof6bz738r8x5+/d63/4FRs9132moD35xPhxFuVuW5ia\nhDI65YwRZbSE02yi5r8XBC0=\n-----END PRIVATE KEY-----\n",
+  "client_email": "pakka-sheets-sync@pakka-sheets-sync.iam.gserviceaccount.com",
+  "client_id": "109992330167685847074",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/pakka-sheets-sync%40pakka-sheets-sync.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
