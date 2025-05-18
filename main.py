@@ -4,14 +4,14 @@ import asyncio
 import aiohttp
 from fastapi import FastAPI, Request
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
     CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
-from dotenv import load_dotenv
 from telegram.error import BadRequest
+from dotenv import load_dotenv
 from db import (
     init_db, add_user, get_total_users,
     get_last_users, get_all_user_ids, export_users_to_csv
@@ -21,7 +21,7 @@ from sheets import add_user_to_sheet
 # === CONFIG ===
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7926831448
+ADMIN_ID = 7926831448  # 👈 заміни на свій Telegram user ID, якщо треба
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"
@@ -36,6 +36,11 @@ logging.basicConfig(
 init_db()
 app = FastAPI()
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+# === ROOT ROUTE для UptimeRobot ===
+@app.get("/")
+async def root():
+    return {"status": "✅ Bot is running."}
 
 # === KEEP AWAKE ===
 async def keep_awake():
@@ -65,7 +70,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(user.id, user.username, user.first_name)
 
     try:
-        add_user_to_sheet(user.id, user.username, user.first_name)
+        add_user_to_sheet(user.id, user.username)
         logging.info(f"📥 Додано до Google Sheets: {user.id}")
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
@@ -185,8 +190,3 @@ async def telegram_webhook(req: Request):
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"status": "ok"}
-
-# === HEALTHCHECK ROUTE ===
-@app.get("/")
-async def root():
-    return {"status": "Bot is running 🟢"}
