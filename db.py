@@ -1,10 +1,15 @@
+import os
 import sqlite3
 from datetime import datetime
 import csv
 
-DB_NAME = "users.db"
+# === CONFIG ===
+DB_NAME = os.getenv("DB_NAME", "users.db")  # Можна змінити в Environment Variables
+EXPORT_PATH = os.getenv("EXPORT_PATH", ".")  # Де створювати CSV файл
 
+# === INIT DB ===
 def init_db():
+    os.makedirs(os.path.dirname(DB_NAME), exist_ok=True) if "/" in DB_NAME else None
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -18,6 +23,7 @@ def init_db():
         """)
         conn.commit()
 
+# === ADD USER ===
 def add_user(telegram_id, username, first_name):
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
@@ -32,6 +38,7 @@ def add_user(telegram_id, username, first_name):
         ))
         conn.commit()
 
+# === STATS ===
 def get_total_users():
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
@@ -53,12 +60,15 @@ def get_all_user_ids():
         cursor.execute("SELECT telegram_id FROM users")
         return [row[0] for row in cursor.fetchall()]
 
+# === EXPORT TO CSV ===
 def export_users_to_csv(filename="users.csv"):
+    filepath = os.path.join(EXPORT_PATH, filename)
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT telegram_id, username, first_name, joined_at FROM users")
         rows = cursor.fetchall()
-        with open(filename, "w", newline="", encoding="utf-8") as csvfile:
+        os.makedirs(EXPORT_PATH, exist_ok=True)
+        with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(["telegram_id", "username", "first_name", "joined_at"])
             writer.writerows(rows)
