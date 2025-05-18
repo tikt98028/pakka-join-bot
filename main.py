@@ -21,7 +21,7 @@ from sheets import add_user_to_sheet
 # === CONFIG ===
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7926831448  # заміни на свій Telegram ID
+ADMIN_ID = 7926831448
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"
@@ -62,20 +62,24 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logging.error(f"❌ Помилка: {e}")
 
-    # ➕ Додати до БД
+    # ➕ Додати в SQLite
     add_user(user.id, user.username, user.first_name)
 
-    # 🗓️ Створити дату
+    # 🗓️ Дата
     joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 📄 Додати до Google Sheet
+    # 📌 Джерело запрошення
+    invite = update.chat_join_request.invite_link
+    invite_source = invite.name if invite and invite.name else "unknown"
+
+    # ➕ Додати в Google Sheets
     try:
-        add_user_to_sheet(user.id, user.username, user.first_name, joined_at)
-        logging.info(f"📥 Додано до Google Sheets: {user.id}")
+        add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
+        logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
 
-    # 🤖 Надіслати повідомлення
+    # 🤖 Привітання
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
@@ -183,7 +187,7 @@ async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
-# === WEBHOOK HANDLER ===
+# === WEBHOOK HANDLER + PING ===
 @app.get("/")
 async def root():
     return {"status": "ok"}
