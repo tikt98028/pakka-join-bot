@@ -14,14 +14,14 @@ from dotenv import load_dotenv
 
 from db import (
     init_db, add_user, get_total_users,
-    get_last_users, get_all_user_ids, export_users_to_csv
+    get_last_users, get_all_user_ids, export_users_to_csv, get_users_by_source
 )
 from sheets import add_user_to_sheet
 
 # === CONFIG ===
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7926831448
+ADMIN_ID = int(os.getenv("ADMIN_ID", 7926831448))
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"
@@ -53,6 +53,10 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     chat_id = update.chat_join_request.chat.id
     username = f"@{user.username}" if user.username else f"ID:{user.id}"
+    invite = update.chat_join_request.invite_link
+    invite_source = invite.name if invite and invite.name else "unknown"
+    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
     try:
         await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user.id)
         logging.info(f"✅ Схвалено {username}")
@@ -62,17 +66,8 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logging.error(f"❌ Помилка: {e}")
 
-    # ➕ Додати в SQLite
-    add_user(user.id, user.username, user.first_name)
+    add_user(user.id, user.username, user.first_name, invite_source)
 
-    # 🗓️ Дата
-    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-
-    # 📌 Джерело запрошення
-    invite = update.chat_join_request.invite_link
-    invite_source = invite.name if invite and invite.name else "unknown"
-
-    # ➕ Додати в Google Sheets
     try:
         add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
         logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
@@ -112,16 +107,18 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔢 Статистика", callback_data="stats")],
         [InlineKeyboardButton("📋 Останні користувачі", callback_data="logs")],
         [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")],
-        [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")]
+        [InlineKeyboardButton("📎 Експорт CSV", callback_data="export")],
+        [InlineKeyboardButton("📊 Джерела", callback_data="sources")]
     ])
     await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
 
-# === CALLBACK HANDLER ===
+# === CALLBACKS ===
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or update.effective_user.id != ADMIN_ID:
         return
     query = update.callback_query
     await query.answer()
+
     if query.data == "stats":
         count = get_total_users()
         await query.edit_message_text(f"📊 Total approved users: {count}")
@@ -130,9 +127,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not users:
             await query.edit_message_text("⚠️ No users yet.")
             return
-        text = "\n".join([
-            f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users
-        ])
+        text = "\n".join([f"{u[2]} ({u[1] or 'no username'}) — {u[3]}" for u in users])
         await query.edit_message_text(f"📋 Last users:\n{text}")
     elif query.data == "broadcast":
         await query.edit_message_text("📝 Введи текст розсилки:")
@@ -149,6 +144,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Export failed: {e}")
+    elif query.data == "sources":
+        sources = get_users_by_source()
+        if not sources:
+            await query.edit_message_text("⚠️ Даних ще немає.")
+            return
+        msg = "📊 Джерела приєднань:\n\n"
+        for source, count in sources:
+            label = source if source else "🔗 Без мітки"
+            msg += f"{label}: {count} користувачів\n"
+        await query.edit_message_text(msg)
 
 # === BROADCAST HANDLER ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -187,7 +192,6 @@ async def on_shutdown():
     await telegram_app.stop()
     await telegram_app.shutdown()
 
-# === WEBHOOK HANDLER + PING ===
 @app.get("/")
 async def root():
     return {"status": "ok"}
