@@ -4,12 +4,13 @@ import asyncio
 import aiohttp
 from fastapi import FastAPI, Request
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
     CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
+from dotenv import load_dotenv
 from telegram.error import BadRequest
 from db import (
     init_db, add_user, get_total_users,
@@ -18,16 +19,12 @@ from db import (
 from sheets import add_user_to_sheet
 
 # === CONFIG ===
+load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-SHEET_ID = os.getenv("SHEET_ID")
-ADMIN_ID = 7926831448  # 🔐 Заміни при потребі
-
+ADMIN_ID = 7926831448
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"https://pakka-join-bot.onrender.com{WEBHOOK_PATH}"
 SELF_PING_URL = "https://pakka-join-bot.onrender.com"
-
-if not BOT_TOKEN or not SHEET_ID:
-    raise Exception("❌ BOT_TOKEN або SHEET_ID не встановлені!")
 
 # === LOGGING ===
 logging.basicConfig(
@@ -39,6 +36,11 @@ logging.basicConfig(
 init_db()
 app = FastAPI()
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+# === ROOT ALIVE PING ===
+@app.get("/")
+async def root():
+    return {"status": "✅ Bot is running", "ping": "pong"}
 
 # === KEEP AWAKE ===
 async def keep_awake():
