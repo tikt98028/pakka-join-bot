@@ -1,19 +1,26 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
-# === Параметри ===
-SHEET_ID = "1fppuW2FtrJ7hXGkypgz52xZuMiMYr8zsZ2TeSnqutyA"
-SHEET_NAME = "Лист1"  # або "Sheet1", якщо англійська версія
+# Файл ключа сервісного акаунта (поклади в корінь проєкту)
+CREDENTIALS_FILE = "google-credentials.json"  # <-- назви свій .json саме так
+SPREADSHEET_NAME = "Pakka Users"
 
-# === Авторизація Google API ===
+# Підключення до Google Sheets
 def get_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+    sheet = client.open(SPREADSHEET_NAME).sheet1
     return sheet
 
-# === Додати рядок
-def append_user_to_sheet(telegram_id, username, first_name, joined_at):
+# Додає нового юзера
+def add_user_to_sheet(telegram_id, username, first_name):
     sheet = get_sheet()
-    sheet.append_row([telegram_id, username or "", first_name or "", joined_at])
+    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    sheet.append_row([
+        str(telegram_id),
+        username if username else "",
+        first_name if first_name else "",
+        joined_at
+    ])
