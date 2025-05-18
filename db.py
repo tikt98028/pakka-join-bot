@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import csv
 
 DB_NAME = "users.db"
@@ -20,6 +20,7 @@ def init_db():
         conn.commit()
 
 def add_user(telegram_id, username, first_name, invite_source="unknown"):
+    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -29,7 +30,7 @@ def add_user(telegram_id, username, first_name, invite_source="unknown"):
             telegram_id,
             username,
             first_name,
-            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+            joined_at,
             invite_source
         ))
         conn.commit()
@@ -73,3 +74,13 @@ def get_users_by_source():
             GROUP BY invite_source
         """)
         return cursor.fetchall()
+
+def get_users_last_24h():
+    since = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM users
+            WHERE joined_at >= ?
+        """, (since,))
+        return cursor.fetchone()[0]
