@@ -4,7 +4,7 @@ import asyncio
 import aiohttp
 from fastapi import FastAPI, Request
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 )
 from telegram.ext import (
     ApplicationBuilder, ContextTypes, ChatJoinRequestHandler,
@@ -36,11 +36,6 @@ logging.basicConfig(
 init_db()
 app = FastAPI()
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-# === ROOT ALIVE PING ===
-@app.get("/")
-async def root():
-    return {"status": "✅ Bot is running", "ping": "pong"}
 
 # === KEEP AWAKE ===
 async def keep_awake():
@@ -190,3 +185,8 @@ async def telegram_webhook(req: Request):
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"status": "ok"}
+
+# === HEALTHCHECK ROUTE ===
+@app.get("/")
+async def root():
+    return {"status": "Bot is running 🟢"}
