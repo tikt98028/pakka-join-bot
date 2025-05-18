@@ -16,6 +16,7 @@ from db import (
     init_db, add_user, get_total_users,
     get_last_users, get_all_user_ids, export_users_to_csv
 )
+from sheets import add_user_to_sheet
 
 # === CONFIG ===
 load_dotenv()
@@ -60,8 +61,18 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.warning(f"⚠️ Неможливо схвалити {username}")
         else:
             logging.error(f"❌ Помилка: {e}")
+
+    # ➕ Додати до SQLite
     add_user(user.id, user.username, user.first_name)
 
+    # ➕ Додати до Google Sheets
+    try:
+        add_user_to_sheet(user.id, user.username, user.first_name)
+        logging.info(f"📥 Додано до Google Sheets: {user.id}")
+    except Exception as e:
+        logging.warning(f"⚠️ Sheets error: {e}")
+
+    # 📸 Привітання
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
