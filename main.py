@@ -102,7 +102,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👇 Tap now and grab your free signal:"
     )
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 GET FREE SIGNAL", url="https://t.me/m/nSRnEuc5MjJi")]
+        [InlineKeyboardButton("🚀 GET FREE SIGNAL", url="https://t.me/m/bBXst0VWZjAy")]
     ])
     try:
         await context.bot.send_photo(
