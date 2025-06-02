@@ -1,8 +1,13 @@
 import sqlite3
 from datetime import datetime, timedelta
+import pytz
 import csv
 
 DB_NAME = "users.db"
+KYIV_TZ = pytz.timezone("Europe/Kyiv")
+
+def get_kyiv_time():
+    return datetime.now(KYIV_TZ).strftime('%Y-%m-%d %H:%M:%S')
 
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
@@ -20,7 +25,7 @@ def init_db():
         conn.commit()
 
 def add_user(telegram_id, username, first_name, invite_source="unknown"):
-    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    joined_at = get_kyiv_time()
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -76,7 +81,7 @@ def get_users_by_source():
         return cursor.fetchall()
 
 def get_users_last_24h():
-    since = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
+    since = (datetime.now(KYIV_TZ) - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute("""
