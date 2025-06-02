@@ -58,7 +58,7 @@ async def send_daily_report(bot):
             if not stats:
                 text = "📅 Звіт за 24 години:\n\n❌ Немає нових користувачів."
             else:
-                text = "📅 Звіт за останні 24 години:\n\n"
+                text = "📅 Звіт за останні 24 години (за Київським часом):\n\n"
                 for source, count in stats:
                     label = source if source else "unknown"
                     text += f"🔗 {label} — {count}\n"
@@ -75,7 +75,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite = update.chat_join_request.invite_link
     invite_source = invite.name if invite and invite.name else "unknown"
 
-    # Київський час
     kyiv_time = datetime.now(timezone("Europe/Kyiv"))
     joined_at = kyiv_time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -125,6 +124,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔢 Всі користувачі", callback_data="stats")],
         [InlineKeyboardButton("🕓 За добу", callback_data="lastday")],
+        [InlineKeyboardButton("📊 За добу + джерела", callback_data="lastday_sources")],
         [InlineKeyboardButton("📋 Останні", callback_data="logs")],
         [InlineKeyboardButton("📊 Джерела", callback_data="sources")],
         [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
@@ -144,6 +144,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "lastday":
         count = get_users_last_24h()
         await query.edit_message_text(f"🕓 За останні 24 години: {count} користувачів")
+    elif query.data == "lastday_sources":
+        stats = get_users_last_24h_by_source()
+        if not stats:
+            await query.edit_message_text("⚠️ Даних ще немає.")
+            return
+        msg = "🕓 За останні 24 години (Київ):\n\n"
+        for source, count in stats:
+            msg += f"🔗 {source}: {count} користувачів\n"
+        await query.edit_message_text(msg)
     elif query.data == "logs":
         users = get_last_users()
         if not users:
