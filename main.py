@@ -15,9 +15,9 @@ from dotenv import load_dotenv
 
 from sheets import (
     add_user_to_sheet, get_total_users,
-    get_last_users, get_users_last_24h,
+    get_last_users, get_users_today,
     get_users_by_source, get_all_user_ids,
-    count_by_source, get_users_last_24h_by_source
+    count_by_source, get_users_today_by_source
 )
 
 # === CONFIG ===
@@ -54,11 +54,11 @@ async def send_daily_report(bot):
     await asyncio.sleep(30)
     while True:
         try:
-            stats = get_users_last_24h_by_source()
+            stats = get_users_today_by_source()
             if not stats:
-                text = "📅 Звіт за 24 години:\n\n❌ Немає нових користувачів."
+                text = "📅 Звіт за сьогодні:\n\n❌ Немає нових користувачів."
             else:
-                text = "📅 Звіт за останні 24 години (за Київським часом):\n\n"
+                text = "📅 Звіт за сьогодні:\n\n"
                 for source, count in stats:
                     label = source if source else "unknown"
                     text += f"🔗 {label} — {count}\n"
@@ -75,6 +75,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite = update.chat_join_request.invite_link
     invite_source = invite.name if invite and invite.name else "unknown"
 
+    # Київський час
     kyiv_time = datetime.now(timezone("Europe/Kyiv"))
     joined_at = kyiv_time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -123,8 +124,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔢 Всі користувачі", callback_data="stats")],
-        [InlineKeyboardButton("🕓 За добу", callback_data="lastday")],
-        [InlineKeyboardButton("📊 За добу + джерела", callback_data="lastday_sources")],
+        [InlineKeyboardButton("🕓 Сьогодні", callback_data="today")],
         [InlineKeyboardButton("📋 Останні", callback_data="logs")],
         [InlineKeyboardButton("📊 Джерела", callback_data="sources")],
         [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
@@ -141,17 +141,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "stats":
         count = get_total_users()
         await query.edit_message_text(f"📊 Total approved users: {count}")
-    elif query.data == "lastday":
-        count = get_users_last_24h()
-        await query.edit_message_text(f"🕓 За останні 24 години: {count} користувачів")
-    elif query.data == "lastday_sources":
-        stats = get_users_last_24h_by_source()
-        if not stats:
-            await query.edit_message_text("⚠️ Даних ще немає.")
-            return
-        msg = "🕓 За останні 24 години (Київ):\n\n"
-        for source, count in stats:
-            msg += f"🔗 {source}: {count} користувачів\n"
+    elif query.data == "today":
+        count = get_users_today()
+        stats = get_users_today_by_source()
+        msg = f"🕓 Сьогодні: {count} користувачів\n\n"
+        for source, c in stats:
+            msg += f"🔗 {source}: {c}\n"
         await query.edit_message_text(msg)
     elif query.data == "logs":
         users = get_last_users()
@@ -192,25 +187,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
-# === /STATS COMMAND ===
-async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or update.effective_user.id != ADMIN_ID:
-        return
-    args = context.args
-    if args:
-        link_name = args[0]
-        count = count_by_source(link_name)
-        await update.message.reply_text(f"🔗 Посилання **{link_name}** — {count} користувачів")
-    else:
-        summary = dict(get_users_by_source())
-        if not summary:
-            await update.message.reply_text("⚠️ Немає даних по посиланнях")
-            return
-        text = "📊 Всі джерела:\n"
-        for src, cnt in summary.items():
-            text += f"🔗 {src}: {cnt} користувачів\n"
-        await update.message.reply_text(text)
-
 # === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
@@ -219,7 +195,6 @@ async def on_startup():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
     telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
-    telegram_app.add_handler(CommandHandler("stats", stats_handler))
     telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
     await telegram_app.initialize()
