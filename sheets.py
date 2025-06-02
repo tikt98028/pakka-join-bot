@@ -2,6 +2,7 @@ import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
+from pytz import timezone
 
 # 🔐 Шлях до секретного ключа
 GOOGLE_CREDENTIALS_PATH = "/etc/secrets/google-credentials.json"
@@ -19,6 +20,9 @@ credentials = ServiceAccountCredentials.from_json_keyfile_name(
 client = gspread.authorize(credentials)
 SHEET_ID = os.getenv("SHEET_ID")
 sheet = client.open_by_key(SHEET_ID).sheet1
+
+# 📍 Часова зона Києва
+KYIV = timezone("Europe/Kyiv")
 
 # ➕ Додати користувача
 def add_user_to_sheet(user_id: int, username: str, first_name: str, joined_at: str, invite_source: str):
@@ -53,13 +57,14 @@ def get_last_users(limit=5):
     rows = sheet.get_all_records()
     return rows[-limit:]
 
-# ⏱ Користувачі за останні 24 години
+# ⏱ Користувачі за останні 24 години (Київ)
 def get_users_last_24h():
-    now = datetime.utcnow()
+    now = datetime.now(KYIV)
     count = 0
     for row in sheet.get_all_records():
         try:
             joined_at = datetime.strptime(row["joined_at"], "%Y-%m-%d %H:%M:%S")
+            joined_at = KYIV.localize(joined_at)
             if now - joined_at <= timedelta(hours=24):
                 count += 1
         except:
@@ -79,14 +84,15 @@ def count_by_source(source_name: str) -> int:
     data = sheet.get_all_records()
     return sum(1 for row in data if row.get("invite_source") == source_name)
 
-# 🕒 Статистика за добу по кожному джерелу
+# 🕒 Статистика за добу по кожному джерелу (Київ)
 def get_users_last_24h_by_source():
-    now = datetime.utcnow()
+    now = datetime.now(KYIV)
     stats = {}
     for row in sheet.get_all_records():
         try:
-            source = row.get("invite_source", "unknown")
             joined_at = datetime.strptime(row["joined_at"], "%Y-%m-%d %H:%M:%S")
+            joined_at = KYIV.localize(joined_at)
+            source = row.get("invite_source", "unknown")
             if now - joined_at <= timedelta(hours=24):
                 stats[source] = stats.get(source, 0) + 1
         except:
