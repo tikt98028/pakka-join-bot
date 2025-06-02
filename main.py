@@ -3,6 +3,7 @@ import logging
 import asyncio
 import aiohttp
 from datetime import datetime
+from pytz import timezone
 from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -73,7 +74,10 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = f"@{user.username}" if user.username else f"ID:{user.id}"
     invite = update.chat_join_request.invite_link
     invite_source = invite.name if invite and invite.name else "unknown"
-    joined_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Київський час
+    kyiv_time = datetime.now(timezone("Europe/Kyiv"))
+    joined_at = kyiv_time.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
         await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user.id)
