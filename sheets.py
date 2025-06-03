@@ -7,7 +7,7 @@ from pytz import timezone
 # 🔐 Шлях до Google credentials
 GOOGLE_CREDENTIALS_PATH = "/etc/secrets/google-credentials.json"
 
-# 🔗 Скоупи доступу
+# 🔗 Права доступу
 SCOPE = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -53,17 +53,18 @@ def get_last_users(limit=5):
 # 📅 Користувачі за СЬОГОДНІ (за Києвом)
 def get_users_today():
     kyiv = timezone("Europe/Kyiv")
-    now = datetime.now(kyiv)
-    today_str = now.strftime('%Y-%m-%d')
+    today = datetime.now(kyiv).date()
     count = 0
+
     for row in sheet.get_all_records():
         try:
             dt = datetime.strptime(row["joined_at"], "%Y-%m-%d %H:%M:%S")
-            dt_kyiv = dt.astimezone(kyiv)
-            if dt_kyiv.strftime('%Y-%m-%d') == today_str:
+            dt = kyiv.localize(dt)
+            if dt.date() == today:
                 count += 1
         except:
             continue
+
     return count
 
 # 📈 Джерела приєднання (всі)
@@ -84,16 +85,17 @@ def count_by_source(source_name: str) -> int:
 # 📅 Джерела за СЬОГОДНІ (за Києвом)
 def get_users_today_by_source():
     kyiv = timezone("Europe/Kyiv")
-    now = datetime.now(kyiv)
-    today_str = now.strftime('%Y-%m-%d')
+    today = datetime.now(kyiv).date()
     stats = {}
+
     for row in sheet.get_all_records():
         try:
-            source = row.get("invite_source", "unknown")
             dt = datetime.strptime(row["joined_at"], "%Y-%m-%d %H:%M:%S")
-            dt_kyiv = dt.astimezone(kyiv)
-            if dt_kyiv.strftime('%Y-%m-%d') == today_str:
+            dt = kyiv.localize(dt)
+            if dt.date() == today:
+                source = row.get("invite_source", "unknown")
                 stats[source] = stats.get(source, 0) + 1
         except:
             continue
+
     return stats.items()
