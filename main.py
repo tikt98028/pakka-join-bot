@@ -56,9 +56,9 @@ async def send_daily_report(bot):
         try:
             stats = get_users_today_by_source()
             if not stats:
-                text = "📅 Звіт за сьогодні:\n\n❌ Немає нових користувачів."
+                text = "📅 Звіт за день:\n\n❌ Немає нових користувачів."
             else:
-                text = "📅 Звіт за сьогодні:\n\n"
+                text = "📅 Звіт за сьогодні (за Києвом):\n\n"
                 for source, count in stats:
                     label = source if source else "unknown"
                     text += f"🔗 {label} — {count}\n"
@@ -67,7 +67,7 @@ async def send_daily_report(bot):
             logging.warning(f"❌ Daily report error: {e}")
         await asyncio.sleep(86400)
 
-# === APPROVE ===
+# === APPROVE JOIN REQUEST ===
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     chat_id = update.chat_join_request.chat.id
@@ -124,9 +124,10 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔢 Всі користувачі", callback_data="stats")],
-        [InlineKeyboardButton("🕓 Сьогодні", callback_data="today")],
+        [InlineKeyboardButton("📆 За день", callback_data="today")],
         [InlineKeyboardButton("📋 Останні", callback_data="logs")],
         [InlineKeyboardButton("📊 Джерела", callback_data="sources")],
+        [InlineKeyboardButton("📈 Джерела сьогодні", callback_data="sources_today")],
         [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
     ])
     await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
@@ -140,23 +141,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "stats":
         count = get_total_users()
-        await query.edit_message_text(f"📊 Total approved users: {count}")
+        await query.edit_message_text(f"📊 Всього користувачів: {count}")
     elif query.data == "today":
         count = get_users_today()
-        stats = get_users_today_by_source()
-        msg = f"🕓 Сьогодні: {count} користувачів\n\n"
-        for source, c in stats:
-            msg += f"🔗 {source}: {c}\n"
-        await query.edit_message_text(msg)
+        await query.edit_message_text(f"📆 За сьогодні (Київ): {count} користувачів")
     elif query.data == "logs":
         users = get_last_users()
         if not users:
-            await query.edit_message_text("⚠️ No users yet.")
+            await query.edit_message_text("⚠️ Користувачів ще немає.")
             return
         text = "\n".join([
             f"{u['first_name']} ({u['username'] or 'no username'}) — {u['joined_at']}" for u in users
         ])
-        await query.edit_message_text(f"📋 Last users:\n{text}")
+        await query.edit_message_text(f"📋 Останні:\n{text}")
     elif query.data == "sources":
         sources = get_users_by_source()
         if not sources:
@@ -165,6 +162,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = "📊 Джерела приєднань:\n\n"
         for source, count in sources:
             msg += f"🔗 {source}: {count} користувачів\n"
+        await query.edit_message_text(msg)
+    elif query.data == "sources_today":
+        stats = get_users_today_by_source()
+        if not stats:
+            await query.edit_message_text("⚠️ Даних ще немає.")
+            return
+        msg = "📈 Джерела за сьогодні (Київ):\n\n"
+        for source, count in stats:
+            msg += f"🔗 {source}: {count}\n"
         await query.edit_message_text(msg)
     elif query.data == "broadcast":
         await query.edit_message_text("📝 Введи текст розсилки:")
@@ -187,6 +193,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
         context.user_data["broadcast_mode"] = False
 
+# === /STATS COMMAND ===
+async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    if args:
+        link_name = args[0]
+        count = count_by_source(link_name)
+        await update.message.reply_text(f"🔗 Посилання **{link_name}** — {count} користувачів")
+    else:
+        summary = dict(get_users_by_source())
+        if not summary:
+            await update.message.reply_text("⚠️ Немає даних по посиланнях")
+            return
+        text = "📊 Всі джерела:\n"
+        for src, cnt in summary.items():
+            text += f"🔗 {src}: {cnt} користувачів\n"
+        await update.message.reply_text(text)
+
 # === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
@@ -195,6 +220,7 @@ async def on_startup():
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
     telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
+    telegram_app.add_handler(CommandHandler("stats", stats_handler))
     telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
     await telegram_app.initialize()
