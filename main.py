@@ -19,7 +19,7 @@ from sheets import (
     get_users_by_source, get_all_user_ids,
     count_by_source, get_users_today_by_source
 )
-from facebook import send_facebook_event  # <-- Додано імпорт
+from facebook import send_facebook_event
 
 # === CONFIG ===
 load_dotenv()
@@ -45,9 +45,9 @@ async def keep_awake():
         while True:
             try:
                 await session.get(SELF_PING_URL)
-                logging.info("\U0001F310 Self-ping успішно")
+                logging.info("🌐 Self-ping успішно")
             except Exception as e:
-                logging.warning(f"\U0001F6D1 Self-ping error: {e}")
+                logging.warning(f"🛑 Self-ping error: {e}")
             await asyncio.sleep(300)
 
 # === DAILY REPORT ===
@@ -76,7 +76,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite = update.chat_join_request.invite_link
     invite_source = invite.name if invite and invite.name else "unknown"
 
-    # Київський час
     kyiv_time = datetime.now(timezone("Europe/Kyiv"))
     joined_at = kyiv_time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -91,12 +90,10 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
-        logging.info(f"📅 Додано до Google Sheets: {user.id} з {invite_source}")
+        logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
 
-        # === Facebook Conversion API ===
-        event_id = context.user_data.get("event_id")
         send_facebook_event(
-            event_id=event_id,
+            event_id=invite_source,
             user_data={
                 "email": None,
                 "phone": None,
@@ -104,7 +101,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "last_name": None
             }
         )
-
     except Exception as e:
         logging.warning(f"⚠️ Sheets/Facebook error: {e}")
 
@@ -112,12 +108,12 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
         "Where signals = real profits 💸\n\n"
-        "🌟 Accuracy up to 98%\n"
+        "🎯 Accuracy up to 98%\n"
         "📈 No experience needed — just copy & earn\n\n"
-        "🏱 Your first signal is 100% FREE\n\n"
+        "🎁 Your first signal is 100% FREE\n\n"
         "⏳ Hurry! This free access is available for the next 30 minutes only.\n"
         "After that, signals go private for VIP members.\n\n"
-        "🔻 Tap now and grab your free signal:"
+        "👇 Tap now and grab your free signal:"
     )
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 GET FREE SIGNAL", url="https://t.me/m/bBXst0VWZjAy")]
@@ -132,33 +128,15 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.warning(f"⚠️ send_photo failed: {e}")
 
-# === START HANDLER ===
-async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args:
-        context.user_data['event_id'] = context.args[0]
-    await update.message.reply_text("Бот активний ✅")
-
-# === ІНШІ ХЕНДЛЕРИ (без змін) ===
-
-# ... (залиш решту без змін)
-
+# === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
-    telegram_app.add_handler(CommandHandler("admin", admin_panel))
-    telegram_app.add_handler(CallbackQueryHandler(button_handler))
-    telegram_app.add_handler(CommandHandler("start", start_handler))  # оновлено
-    telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
-    telegram_app.add_handler(CommandHandler("stats", stats_handler))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
-
     asyncio.create_task(keep_awake())
     asyncio.create_task(send_daily_report(telegram_app.bot))
-
     logging.info("✅ Webhook активовано")
 
 @app.on_event("shutdown")
