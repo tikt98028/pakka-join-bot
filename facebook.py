@@ -1,8 +1,7 @@
-# facebook.py
-import hashlib
-import json
 import os
 import requests
+import hashlib
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,18 +10,16 @@ PIXEL_ID = os.getenv("PIXEL_ID")
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 API_URL = f"https://graph.facebook.com/v18.0/{PIXEL_ID}/events"
 
-def hash_user_data(data):
-    """Повертає SHA256-хешоване значення або None"""
-    if data:
-        return hashlib.sha256(data.strip().lower().encode()).hexdigest()
+def hash_user_data(value):
+    if value:
+        return hashlib.sha256(value.strip().lower().encode()).hexdigest()
     return None
 
 def send_facebook_event(event_id: str, user_data: dict, test_event_code: str = None):
-    """Надсилає подію LeadComplete у Facebook CAPI"""
     payload = {
         "data": [{
             "event_name": "LeadComplete",
-            "event_time": int(__import__('time').time()),
+            "event_time": int(time.time()),
             "event_id": event_id,
             "action_source": "system_generated",
             "user_data": {
