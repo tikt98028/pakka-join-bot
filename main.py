@@ -19,7 +19,6 @@ from sheets import (
     get_users_by_source, get_all_user_ids,
     count_by_source, get_users_today_by_source
 )
-from facebook import send_facebook_event
 
 # === CONFIG ===
 load_dotenv()
@@ -76,6 +75,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     invite = update.chat_join_request.invite_link
     invite_source = invite.name if invite and invite.name else "unknown"
 
+    # Київський час
     kyiv_time = datetime.now(timezone("Europe/Kyiv"))
     joined_at = kyiv_time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -91,25 +91,15 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
         logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
-
-        send_facebook_event(
-            event_id=invite_source,
-            user_data={
-                "email": None,
-                "phone": None,
-                "first_name": user.first_name,
-                "last_name": None
-            }
-        )
     except Exception as e:
-        logging.warning(f"⚠️ Sheets/Facebook error: {e}")
+        logging.warning(f"⚠️ Sheets error: {e}")
 
     photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
     caption = (
         "🚀 You’ve just unlocked access to Pakka Profit —\n"
         "Where signals = real profits 💸\n\n"
         "🎯 Accuracy up to 98%\n"
-        "📈 No experience needed — just copy & earn\n\n"
+        "📈 No experience needed — just copy & earn\n"
         "🎁 Your first signal is 100% FREE\n\n"
         "⏳ Hurry! This free access is available for the next 30 minutes only.\n"
         "After that, signals go private for VIP members.\n\n"
@@ -128,15 +118,118 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.warning(f"⚠️ send_photo failed: {e}")
 
+# === ADMIN PANEL ===
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔢 Всі користувачі", callback_data="stats")],
+        [InlineKeyboardButton("📆 За день", callback_data="today")],
+        [InlineKeyboardButton("📋 Останні", callback_data="logs")],
+        [InlineKeyboardButton("📊 Джерела", callback_data="sources")],
+        [InlineKeyboardButton("📈 Джерела сьогодні", callback_data="sources_today")],
+        [InlineKeyboardButton("📢 Розсилка", callback_data="broadcast")]
+    ])
+    await update.message.reply_text("👑 Admin Panel\n\nОберіть дію:", reply_markup=keyboard)
+
+# === CALLBACKS ===
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "stats":
+        count = get_total_users()
+        await query.edit_message_text(f"📊 Всього користувачів: {count}")
+    elif query.data == "today":
+        count = get_users_today()
+        await query.edit_message_text(f"📆 За сьогодні (Київ): {count} користувачів")
+    elif query.data == "logs":
+        users = get_last_users()
+        if not users:
+            await query.edit_message_text("⚠️ Користувачів ще немає.")
+            return
+        text = "\n".join([
+            f"{u['first_name']} ({u['username'] or 'no username'}) — {u['joined_at']}" for u in users
+        ])
+        await query.edit_message_text(f"📋 Останні:\n{text}")
+    elif query.data == "sources":
+        sources = get_users_by_source()
+        if not sources:
+            await query.edit_message_text("⚠️ Даних ще немає.")
+            return
+        msg = "📊 Джерела приєднань:\n\n"
+        for source, count in sources:
+            msg += f"🔗 {source}: {count} користувачів\n"
+        await query.edit_message_text(msg)
+    elif query.data == "sources_today":
+        stats = get_users_today_by_source()
+        if not stats:
+            await query.edit_message_text("⚠️ Даних ще немає.")
+            return
+        msg = "📈 Джерела за сьогодні (Київ):\n\n"
+        for source, count in stats:
+            msg += f"🔗 {source}: {count}\n"
+        await query.edit_message_text(msg)
+    elif query.data == "broadcast":
+        await query.edit_message_text("📝 Введи текст розсилки:")
+        context.user_data["broadcast_mode"] = True
+
+# === BROADCAST TEXT ===
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    if context.user_data.get("broadcast_mode"):
+        text = "🗣 " + update.message.text
+        ids = get_all_user_ids()
+        sent, fail = 0, 0
+        for uid in ids:
+            try:
+                await context.bot.send_message(chat_id=uid, text=text)
+                sent += 1
+            except:
+                fail += 1
+        await update.message.reply_text(f"📤 Done: {sent} sent, {fail} failed")
+        context.user_data["broadcast_mode"] = False
+
+# === /STATS COMMAND ===
+async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or update.effective_user.id != ADMIN_ID:
+        return
+    args = context.args
+    if args:
+        link_name = args[0]
+        count = count_by_source(link_name)
+        await update.message.reply_text(f"🔗 Посилання **{link_name}** — {count} користувачів")
+    else:
+        summary = dict(get_users_by_source())
+        if not summary:
+            await update.message.reply_text("⚠️ Немає даних по посиланнях")
+            return
+        text = "📊 Всі джерела:\n"
+        for src, cnt in summary.items():
+            text += f"🔗 {src}: {cnt} користувачів\n"
+        await update.message.reply_text(text)
+
 # === STARTUP ===
 @app.on_event("startup")
 async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
+    telegram_app.add_handler(CommandHandler("admin", admin_panel))
+    telegram_app.add_handler(CallbackQueryHandler(button_handler))
+    telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
+    telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
+    telegram_app.add_handler(CommandHandler("stats", stats_handler))
+    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
     await telegram_app.initialize()
     await telegram_app.start()
     await telegram_app.bot.set_webhook(url=WEBHOOK_URL)
+
     asyncio.create_task(keep_awake())
     asyncio.create_task(send_daily_report(telegram_app.bot))
+
     logging.info("✅ Webhook активовано")
 
 @app.on_event("shutdown")
