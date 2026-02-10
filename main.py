@@ -13,6 +13,7 @@ from telegram.ext import (
 from telegram.error import BadRequest
 from dotenv import load_dotenv
 
+# Імпорт ваших функцій для роботи з таблицями
 from sheets import (
     add_user_to_sheet, get_total_users,
     get_last_users, get_users_today,
@@ -67,7 +68,7 @@ async def send_daily_report(bot):
             logging.warning(f"❌ Daily report error: {e}")
         await asyncio.sleep(86400)
 
-# === APPROVE JOIN REQUEST ===
+# === APPROVE JOIN REQUEST (Без привітання) ===
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     chat_id = update.chat_join_request.chat.id
@@ -79,6 +80,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kyiv_time = datetime.now(timezone("Europe/Kyiv"))
     joined_at = kyiv_time.strftime('%Y-%m-%d %H:%M:%S')
 
+    # 1. Схвалюємо запит
     try:
         await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user.id)
         logging.info(f"✅ Схвалено {username}")
@@ -88,35 +90,14 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             logging.error(f"❌ Помилка: {e}")
 
+    # 2. Записуємо в таблицю
     try:
         add_user_to_sheet(user.id, user.username, user.first_name, joined_at, invite_source)
         logging.info(f"📥 Додано до Google Sheets: {user.id} з {invite_source}")
     except Exception as e:
         logging.warning(f"⚠️ Sheets error: {e}")
 
-    photo_url = "https://i.postimg.cc/Ssc6hMjG/2025-05-16-13-56-15.jpg"
-    caption = (
-        "🚀 You’ve just unlocked access to Pakka Profit —\n"
-        "Where signals = real profits 💸\n\n"
-        "🎯 Accuracy up to 98%\n"
-        "📈 No experience needed — just copy & earn\n"
-        "🎁 Your first signal is 100% FREE\n\n"
-        "⏳ Hurry! This free access is available for the next 30 minutes only.\n"
-        "After that, signals go private for VIP members.\n\n"
-        "👇 Tap now and grab your free signal:"
-    )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 GET FREE SIGNAL", url="https://t.me/m/bBXst0VWZjAy")]
-    ])
-    try:
-        await context.bot.send_photo(
-            chat_id=user.id,
-            photo=photo_url,
-            caption=caption,
-            reply_markup=keyboard
-        )
-    except Exception as e:
-        logging.warning(f"⚠️ send_photo failed: {e}")
+    # ПРИВІТАЛЬНЕ ПОВІДОМЛЕННЯ ВИДАЛЕНО
 
 # === ADMIN PANEL ===
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -218,6 +199,7 @@ async def on_startup():
     telegram_app.add_handler(ChatJoinRequestHandler(approve))
     telegram_app.add_handler(CommandHandler("admin", admin_panel))
     telegram_app.add_handler(CallbackQueryHandler(button_handler))
+    # Залишив відповідь на /start тільки щоб ви могли перевірити, чи бот "живий"
     telegram_app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Бот активний ✅")))
     telegram_app.add_handler(CommandHandler("help", lambda u, c: u.message.reply_text("🧠 Напиши /admin для керування")))
     telegram_app.add_handler(CommandHandler("stats", stats_handler))
@@ -230,7 +212,7 @@ async def on_startup():
     asyncio.create_task(keep_awake())
     asyncio.create_task(send_daily_report(telegram_app.bot))
 
-    logging.info("✅ Webhook активовано")
+    logging.info("✅ Webhook активовано. Вітальні повідомлення вимкнено.")
 
 @app.on_event("shutdown")
 async def on_shutdown():
